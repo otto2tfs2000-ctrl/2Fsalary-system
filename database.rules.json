@@ -1,0 +1,8 @@
+{
+  "rules": {
+    "salarySystem": {
+      ".read": true,
+      ".write": true
+    }
+  }
+}

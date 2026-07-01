@@ -1,0 +1,765 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>教學老師薪資管理系統</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<!-- Firebase Realtime Database SDK -->
+<script type="module">
+  import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+    getDatabase, ref, set, get, onValue
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
+
+  // ── Firebase 設定（otto2-2026）──────────────────────────
+  const FIREBASE_CONFIG = {
+    apiKey:            "AIzaSyCQYP21uHGAeSj_i6ANMexMvp3_bciHvTw",
+    authDomain:        "otto2-2026.firebaseapp.com",
+    databaseURL:       "https://otto2-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId:         "otto2-2026",
+    storageBucket:     "otto2-2026.appspot.com",
+    messagingSenderId: "108328085665",
+    appId:             "1:108328085665:web:071a45a7d7c5af6b6468e0",
+  };
+
+  const app = initializeApp(FIREBASE_CONFIG);
+  const db  = getDatabase(app);
+
+  const STAFF_PATH  = "salarySystem/staff";
+  const MONTHS_PATH = "salarySystem/months";
+
+  window._db = {
+    // 寫入
+    async saveStaff(data)  { await set(ref(db, STAFF_PATH),  data); },
+    async saveMonths(data) { await set(ref(db, MONTHS_PATH), data); },
+
+    // 一次性讀取（初始載入）
+    async getStaff()  {
+      const snap = await get(ref(db, STAFF_PATH));
+      return snap.exists() ? snap.val() : null;
+    },
+    async getMonths() {
+      const snap = await get(ref(db, MONTHS_PATH));
+      return snap.exists() ? snap.val() : null;
+    },
+
+    // 即時監聽（onValue = Realtime Database 的 onSnapshot）
+    listenStaff(cb) {
+      return onValue(ref(db, STAFF_PATH), snap => {
+        if (snap.exists()) cb(snap.val());
+      });
+    },
+    listenMonths(cb) {
+      return onValue(ref(db, MONTHS_PATH), snap => {
+        if (snap.exists()) cb(snap.val());
+      });
+    },
+  };
+
+  window.dispatchEvent(new Event("firebase-ready"));
+</script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --bg: #ffffff; --bg2: #f6f6f4; --bg3: #efefec;
+  --text: #1a1a18; --text2: #6b6b67; --text3: #9b9b96;
+  --border: rgba(0,0,0,0.10); --border2: rgba(0,0,0,0.18);
+  --blue-bg: #e6f1fb; --blue-text: #0c447c;
+  --green-bg: #eaf3de; --green-text: #27500a;
+  --amber-bg: #faeeda; --amber-text: #633806;
+  --danger-bg: #fcebeb; --danger-text: #791f1f; --danger-border: rgba(200,60,60,0.35);
+  --success: #22c55e; --warning: #f59e0b; --error: #ef4444;
+  --radius: 8px; --radius-lg: 12px;
+  --font: system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1c1a; --bg2: #252523; --bg3: #2e2e2b;
+    --text: #e8e8e4; --text2: #9b9b96; --text3: #6b6b67;
+    --border: rgba(255,255,255,0.10); --border2: rgba(255,255,255,0.18);
+    --blue-bg: #042c53; --blue-text: #85b7eb;
+    --green-bg: #173404; --green-text: #c0dd97;
+    --amber-bg: #412402; --amber-text: #fac775;
+    --danger-bg: #501313; --danger-text: #f09595;
+  }
+}
+body { font-family: var(--font); background: var(--bg3); color: var(--text); font-size: 14px; min-height: 100vh; }
+.wrap { max-width: 780px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+.topbar { display:flex; align-items:center; justify-content:space-between; margin-bottom:1.5rem; flex-wrap:wrap; gap:8px; }
+.topbar-left { display:flex; align-items:center; gap:10px; }
+.app-title { font-size:16px; font-weight:600; }
+.sync-wrap { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text2); }
+.dot { width:8px; height:8px; border-radius:50%; background:var(--text3); transition:background .3s; }
+.dot.ok { background:var(--success); } .dot.busy { background:var(--warning); } .dot.err { background:var(--error); }
+.topbar-right { display:flex; align-items:center; gap:8px; font-size:12px; color:var(--text2); }
+.topbar-right input { font-size:12px; padding:4px 8px; width:100px; }
+.tabs { display:flex; gap:2px; border-bottom:1px solid var(--border); margin-bottom:1.5rem; flex-wrap:wrap; }
+.tab { padding:8px 16px; cursor:pointer; font-size:13px; border-radius:var(--radius) var(--radius) 0 0; color:var(--text2); border:1px solid transparent; border-bottom:none; background:transparent; font-family:var(--font); }
+.tab:hover { background:var(--bg2); color:var(--text); }
+.tab.active { background:var(--bg); color:var(--text); border-color:var(--border); font-weight:500; margin-bottom:-1px; padding-bottom:9px; }
+.pane { display:none; } .pane.active { display:block; }
+.card { background:var(--bg); border:1px solid var(--border); border-radius:var(--radius-lg); padding:1rem 1.25rem; margin-bottom:1rem; }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; }
+label.lbl, .lbl { font-size:12px; color:var(--text2); margin-bottom:4px; display:block; }
+input, select { width:100%; padding:7px 10px; border:1px solid var(--border2); border-radius:var(--radius); background:var(--bg); color:var(--text); font-size:13px; font-family:var(--font); }
+input:focus, select:focus { outline:none; border-color:#378add; box-shadow:0 0 0 2px rgba(55,138,221,.15); }
+.btn { padding:7px 14px; border:1px solid var(--border2); border-radius:var(--radius); background:transparent; color:var(--text); cursor:pointer; font-size:13px; font-family:var(--font); }
+.btn:hover { background:var(--bg2); }
+.btn-primary { background:var(--text); color:var(--bg); border-color:var(--text); }
+.btn-primary:hover { opacity:.85; }
+.btn-danger { color:var(--danger-text); border-color:var(--danger-border); }
+.btn-danger:hover { background:var(--danger-bg); }
+.btn-sm { padding:4px 10px; font-size:12px; }
+.flex { display:flex; align-items:center; gap:8px; }
+.flex-between { display:flex; align-items:center; justify-content:space-between; }
+.mt { margin-top:.75rem; } .mb { margin-bottom:.75rem; }
+.badge { font-size:11px; padding:2px 8px; border-radius:20px; font-weight:500; }
+.badge-blue { background:var(--blue-bg); color:var(--blue-text); }
+.badge-green { background:var(--green-bg); color:var(--green-text); }
+.badge-amber { background:var(--amber-bg); color:var(--amber-text); }
+.t-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-bottom:1px solid var(--border); }
+.t-row:last-child { border-bottom:none; }
+.avatar { width:36px; height:36px; border-radius:50%; background:var(--blue-bg); display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:600; color:var(--blue-text); flex-shrink:0; }
+.avatar-green { background:var(--green-bg); color:var(--green-text); }
+.stat-card { background:var(--bg2); border-radius:var(--radius); padding:10px 12px; text-align:center; }
+.stat-lbl { font-size:11px; color:var(--text2); }
+.stat-num { font-size:16px; font-weight:600; margin-top:2px; }
+table { width:100%; border-collapse:collapse; font-size:13px; }
+th { text-align:left; padding:8px 10px; font-weight:500; border-bottom:1px solid var(--border); font-size:12px; color:var(--text2); }
+td { padding:8px 10px; border-bottom:1px solid var(--border); }
+tr:last-child td { border-bottom:none; }
+.upload-area { border:2px dashed var(--border2); border-radius:var(--radius-lg); padding:2.5rem; text-align:center; cursor:pointer; color:var(--text2); transition:background .15s; }
+.upload-area:hover { background:var(--bg2); }
+.msg { padding:10px 14px; border-radius:var(--radius); font-size:13px; margin-bottom:1rem; }
+.msg-info  { background:var(--blue-bg);  color:var(--blue-text); }
+.msg-ok    { background:var(--green-bg); color:var(--green-text); }
+.msg-warn  { background:var(--amber-bg); color:var(--amber-text); }
+.extra-row { display:flex; gap:8px; align-items:center; margin-top:8px; }
+.sec-hd { font-size:13px; font-weight:500; color:var(--text2); margin:1rem 0 .5rem; }
+.ot-row { display:flex; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+.ot-row:last-child { border-bottom:none; }
+.ot-row input { width:76px; }
+/* modal */
+.modal-bg { display:none; position:fixed; inset:0; background:rgba(0,0,0,.5); z-index:200; align-items:center; justify-content:center; padding:1rem; }
+.modal-bg.open { display:flex; }
+.modal { background:var(--bg); border-radius:var(--radius-lg); border:1px solid var(--border2); padding:1.5rem; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <!-- 頂列 -->
+  <div class="topbar">
+    <div class="topbar-left">
+      <span class="app-title">教學薪資管理</span>
+      <div class="sync-wrap">
+        <span class="dot" id="dot"></span>
+        <span id="sync-lbl">連線中...</span>
+      </div>
+    </div>
+    <div class="topbar-right">
+      <span>使用者：</span>
+      <input id="username" placeholder="輸入您的名字" style="width:100px">
+      <span id="last-edit" style="color:var(--text3)"></span>
+    </div>
+  </div>
+
+  <!-- 頁籤 -->
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('staff')">人員設定</button>
+    <button class="tab" onclick="switchTab('stats')">每月統計</button>
+    <button class="tab" onclick="switchTab('salary')">薪資計算</button>
+    <button class="tab" onclick="switchTab('tiers')">獎金級距</button>
+  </div>
+
+  <!-- 人員設定 -->
+  <div id="pane-staff" class="pane active">
+    <div class="flex-between mb">
+      <span style="font-size:15px;font-weight:600">人員設定</span>
+      <div class="flex">
+        <button class="btn btn-sm" onclick="openModal('add','fulltime',null)">＋ 新增正職</button>
+        <button class="btn btn-sm" onclick="openModal('add','parttime',null)">＋ 新增兼職</button>
+      </div>
+    </div>
+    <div class="sec-hd">正職人員</div>
+    <div class="card" id="ft-list"></div>
+    <div class="sec-hd">兼職人員</div>
+    <div class="card" id="pt-list"></div>
+  </div>
+
+  <!-- 每月統計 -->
+  <div id="pane-stats" class="pane">
+    <div class="flex-between mb">
+      <span style="font-size:15px;font-weight:600">每月教學統計</span>
+      <div class="flex">
+        <select id="month-sel" style="width:auto" onchange="switchMonth(this.value)"></select>
+        <button class="btn btn-sm btn-primary" onclick="document.getElementById('file-in').click()">↑ 匯入 xlsx</button>
+        <input type="file" id="file-in" accept=".xlsx,.xls" style="display:none" onchange="handleUpload(event)">
+      </div>
+    </div>
+    <div id="stats-msg"></div>
+    <div id="stats-table"></div>
+    <div id="ot-section" style="display:none">
+      <div class="sec-hd">超時時數（正職）</div>
+      <div class="card" id="ot-inputs"></div>
+    </div>
+  </div>
+
+  <!-- 薪資計算 -->
+  <div id="pane-salary" class="pane">
+    <div class="flex-between mb">
+      <span style="font-size:15px;font-weight:600">薪資計算</span>
+      <div class="flex">
+        <select id="sal-sel" style="width:auto" onchange="renderSalary()"></select>
+        <button class="btn btn-sm btn-primary" onclick="exportSalary()">↓ 匯出薪資單</button>
+      </div>
+    </div>
+    <div id="sal-content"></div>
+  </div>
+
+  <!-- 獎金級距 -->
+  <div id="pane-tiers" class="pane">
+    <p style="font-size:15px;font-weight:600;margin-bottom:1rem">正職人次獎金級距</p>
+    <div class="card">
+      <table><thead><tr><th>學生數</th><th>臨界值</th><th>等級金額</th><th>人次獎金</th><th>臨界值（右）</th><th>比例</th><th>計算值</th></tr></thead>
+      <tbody id="tier-tbody"></tbody></table>
+    </div>
+    <p style="font-size:15px;font-weight:600;margin:1rem 0 .5rem">超時獎金規則</p>
+    <div class="card" style="font-size:13px;color:var(--text2);line-height:2.2">
+      每週總教學時數超過 <strong style="color:var(--text)">16 小時</strong> 後開始計算<br>
+      超出部分每小時 <strong style="color:var(--text)">NT$250</strong>
+    </div>
+  </div>
+
+</div><!-- /wrap -->
+
+<!-- Modal -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal">
+    <div class="flex-between mb">
+      <span style="font-size:15px;font-weight:600" id="modal-title"></span>
+      <button class="btn btn-sm" onclick="closeModal()">✕</button>
+    </div>
+    <div id="modal-body"></div>
+    <div class="flex mt" style="justify-content:flex-end;gap:8px">
+      <button class="btn" onclick="closeModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveModal()">儲存</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── 常數 ────────────────────────────────────────────────
+const TIERS = [
+  {s:12, t:50,  a:1,  b:50},
+  {s:24, t:100, a:5,  b:500,   t2:50,  r:15, c:750},
+  {s:36, t:150, a:8,  b:1200,  t2:75,  r:25, c:1875},
+  {s:48, t:200, a:12, b:2400,  t2:100, r:30, c:3000},
+  {s:60, t:250, a:17, b:4250,  t2:125, r:40, c:5000},
+  {s:71, t:300, a:30, b:9000,  t2:150, r:45, c:6750},
+  {s:83, t:350, a:35, b:12250, t2:175, r:50, c:8750},
+  {s:95, t:400, a:40, b:16000, t2:200, r:55, c:11000},
+  {s:107,t:450, a:50, b:22500},
+];
+
+const DEFAULT_STAFF = {
+  fulltime: [
+    {id:1, name:'林小明', nick:'蘋果老師', base:35000, mgr:false, mgrAmt:0, extras:[]},
+    {id:2, name:'陳美玲', nick:'寒寒老師', base:32000, mgr:true,  mgrAmt:3000, extras:[]},
+    {id:3, name:'王大華', nick:'球球老師', base:30000, mgr:false, mgrAmt:0, extras:[]},
+    {id:4, name:'張小芳', nick:'花花老師', base:30000, mgr:false, mgrAmt:0, extras:[]},
+    {id:5, name:'李志遠', nick:'大熊老師', base:30000, mgr:true,  mgrAmt:3000, extras:[]},
+  ],
+  parttime: [
+    {id:10, name:'黃雅婷', nick:'星星老師', rates:{y:400,m:500,o:600}, full:true,  fullAmt:500, fullThr:6, extras:[]},
+    {id:11, name:'劉冠宇', nick:'軟糖老師', rates:{y:400,m:500,o:600}, full:false, fullAmt:0,   fullThr:6, extras:[]},
+    {id:12, name:'吳珊珊', nick:'鯨魚老師', rates:{y:400,m:500,o:600}, full:false, fullAmt:0,   fullThr:6, extras:[]},
+  ],
+  lastEditBy: '', lastEditAt: '',
+};
+
+// ── 狀態 ────────────────────────────────────────────────
+let staff  = JSON.parse(JSON.stringify(DEFAULT_STAFF));
+let months = {};       // { "2026-06": { data:{}, overtime:{} }, ... }
+let currentMonth = null;
+let editCtx = null;
+
+// ── Firebase 橋接 ────────────────────────────────────────
+function syncStatus(state, msg) {
+  const dot = document.getElementById('dot');
+  const lbl = document.getElementById('sync-lbl');
+  dot.className = 'dot ' + state;
+  lbl.textContent = msg;
+}
+
+async function saveStaff() {
+  if (!window._db) return;
+  syncStatus('busy', '儲存中...');
+  const who = document.getElementById('username').value || '未知';
+  staff.lastEditBy = who;
+  staff.lastEditAt = new Date().toLocaleTimeString('zh-TW', {hour:'2-digit', minute:'2-digit'});
+  try {
+    await window._db.saveStaff(staff);
+    syncStatus('ok', '已同步 ' + staff.lastEditAt);
+    document.getElementById('last-edit').textContent = '上次：' + staff.lastEditBy + ' ' + staff.lastEditAt;
+  } catch(e) { syncStatus('err', '儲存失敗'); }
+}
+
+async function saveMonths() {
+  if (!window._db) return;
+  syncStatus('busy', '儲存中...');
+  try {
+    await window._db.saveMonths(months);
+    syncStatus('ok', '已同步');
+  } catch(e) { syncStatus('err', '儲存失敗'); }
+}
+
+function applyRemoteStaff(data) {
+  staff = data;
+  renderStaff();
+  const lel = document.getElementById('last-edit');
+  if (staff.lastEditBy) lel.textContent = '上次：' + staff.lastEditBy + ' ' + staff.lastEditAt;
+  syncStatus('ok', '已同步 ' + (staff.lastEditAt||''));
+}
+
+function applyRemoteMonths(data) {
+  months = data || {};
+  if (!currentMonth) currentMonth = Object.keys(months).sort().reverse()[0] || null;
+  buildMonthOpts('month-sel');
+  buildMonthOpts('sal-sel');
+  const activeTab = document.querySelector('.tab.active');
+  const tabs = ['staff','stats','salary','tiers'];
+  const idx  = [...document.querySelectorAll('.tab')].indexOf(activeTab);
+  if (idx === 1) renderStatsTab();
+  if (idx === 2) renderSalary();
+  syncStatus('ok', '已同步');
+}
+
+// ── 初始化 ───────────────────────────────────────────────
+window.addEventListener('firebase-ready', async () => {
+  syncStatus('busy', '載入資料...');
+  try {
+    const [s, m] = await Promise.all([window._db.getStaff(), window._db.getMonths()]);
+    if (s) { staff  = s; renderStaff(); }
+    if (m) { months = m; currentMonth = Object.keys(m).sort().reverse()[0] || null; }
+    buildMonthOpts('month-sel');
+    buildMonthOpts('sal-sel');
+    renderTiers();
+    syncStatus('ok', '已連線');
+    // 即時監聽
+    window._db.listenStaff(applyRemoteStaff);
+    window._db.listenMonths(applyRemoteMonths);
+  } catch(e) {
+    syncStatus('err', '載入失敗：' + e.message);
+  }
+});
+
+// ── 工具函式 ─────────────────────────────────────────────
+const ini  = n => n.replace(/老師/,'').replace(/[\u{1F300}-\u{1F9FF}]/gu,'').trim().slice(0,2) || n.slice(0,2);
+const ym2l = ym => { if(!ym) return ''; const [y,m]=ym.split('-'); return y+'年'+parseInt(m)+'月'; };
+const nowYM= () => { const d=new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0'); };
+const calcBonus = tot => { let b=0; for(let i=TIERS.length-1;i>=0;i--){ if(tot>=TIERS[i].s){b=TIERS[i].b;break;} } return b; };
+const calcOT    = h   => { const ex=Math.max(0,(parseFloat(h)||0)-16); return ex>0 ? '超時獎金 +$'+Math.round(ex*250).toLocaleString() : '（未超時）'; };
+const getCat    = c   => {
+  if(!c||c.includes('商品')) return null;
+  if(/^2-3歲/.test(c)) return 'y';
+  if(/^4-5歲/.test(c)) return 'm';
+  if(/^6-8歲/.test(c)) return 'o68';
+  if(/^9-12歲/.test(c)) return 'o912';
+  return null;
+};
+const getAtt  = s => parseInt(String(s||'').split('/')[0])||0;
+const findTd  = (nick, data) => Object.values(data||{}).find(d=>d.name.replace(/\s/g,'')===nick.replace(/\s/g,''));
+
+// ── 頁籤切換 ─────────────────────────────────────────────
+function switchTab(t) {
+  document.querySelectorAll('.tab').forEach((b,i)=>{
+    b.classList.toggle('active', ['staff','stats','salary','tiers'][i]===t);
+  });
+  document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
+  document.getElementById('pane-'+t).classList.add('active');
+  if (t==='staff')  renderStaff();
+  if (t==='stats')  { buildMonthOpts('month-sel'); renderStatsTab(); }
+  if (t==='salary') { buildMonthOpts('sal-sel');   renderSalary(); }
+  if (t==='tiers')  renderTiers();
+}
+
+// ── 月份下拉 ─────────────────────────────────────────────
+function buildMonthOpts(selId) {
+  const el = document.getElementById(selId); if(!el) return;
+  const ms = Object.keys(months).sort().reverse();
+  if (!ms.length) { el.innerHTML='<option value="">— 尚無資料 —</option>'; return; }
+  if (!currentMonth || !months[currentMonth]) currentMonth = ms[0];
+  el.innerHTML = ms.map(m=>`<option value="${m}" ${m===currentMonth?'selected':''}>${ym2l(m)}</option>`).join('');
+}
+function switchMonth(ym) { currentMonth=ym; buildMonthOpts('month-sel'); buildMonthOpts('sal-sel'); renderStatsTab(); }
+
+// ── 人員設定渲染 ──────────────────────────────────────────
+function renderStaff() {
+  const ft = document.getElementById('ft-list');
+  const pt = document.getElementById('pt-list');
+  if (!ft||!pt) return;
+
+  ft.innerHTML = (staff.fulltime||[]).length
+    ? (staff.fulltime||[]).map(t=>`
+      <div class="t-row">
+        <div class="avatar">${ini(t.nick)}</div>
+        <div style="flex:1">
+          <div class="flex" style="margin-bottom:2px">
+            <span style="font-weight:600">${t.name}</span>
+            <span style="font-size:12px;color:var(--text2)">${t.nick}</span>
+            ${t.mgr?'<span class="badge badge-amber">主管津貼</span>':''}
+          </div>
+          <div style="font-size:12px;color:var(--text2)">底薪 NT$${t.base.toLocaleString()}${t.mgr?' ＋ 主管津貼 NT$'+t.mgrAmt.toLocaleString():''}${(t.extras||[]).length?' ＋ '+(t.extras||[]).map(e=>e.n+' $'+e.v).join(' ＋ '):''}</div>
+        </div>
+        <div class="flex">
+          <button class="btn btn-sm" onclick="openModal('edit','fulltime',${t.id})">編輯</button>
+          <button class="btn btn-sm btn-danger" onclick="delT('fulltime',${t.id})">刪除</button>
+        </div>
+      </div>`).join('')
+    : '<p style="color:var(--text2);font-size:13px;padding:8px 0">尚無正職人員</p>';
+
+  pt.innerHTML = (staff.parttime||[]).length
+    ? (staff.parttime||[]).map(t=>`
+      <div class="t-row">
+        <div class="avatar avatar-green">${ini(t.nick)}</div>
+        <div style="flex:1">
+          <div class="flex" style="margin-bottom:2px">
+            <span style="font-weight:600">${t.name}</span>
+            <span style="font-size:12px;color:var(--text2)">${t.nick}</span>
+            ${t.full?'<span class="badge badge-green">滿班獎金</span>':''}
+          </div>
+          <div style="font-size:12px;color:var(--text2)">2-3歲 $${t.rates.y} ｜ 4-5歲 $${t.rates.m} ｜ 6-12歲 $${t.rates.o}/堂${t.full?' ｜ 滿班獎金 $'+t.fullAmt+'（達'+t.fullThr+'人）':''}</div>
+        </div>
+        <div class="flex">
+          <button class="btn btn-sm" onclick="openModal('edit','parttime',${t.id})">編輯</button>
+          <button class="btn btn-sm btn-danger" onclick="delT('parttime',${t.id})">刪除</button>
+        </div>
+      </div>`).join('')
+    : '<p style="color:var(--text2);font-size:13px;padding:8px 0">尚無兼職人員</p>';
+}
+
+function delT(type, id) {
+  if (!confirm('確定刪除？')) return;
+  staff[type] = staff[type].filter(t=>t.id!==id);
+  renderStaff(); saveStaff();
+}
+
+// ── Modal ────────────────────────────────────────────────
+function openModal(mode, type, id) {
+  editCtx = {mode, type, id};
+  const t = id ? staff[type].find(x=>x.id===id) : null;
+  document.getElementById('modal-title').textContent =
+    mode==='add' ? (type==='fulltime'?'新增正職':'新增兼職') : '編輯：'+(t?.nick||'');
+  document.getElementById('modal-body').innerHTML = type==='fulltime' ? ftForm(t) : ptForm(t);
+  document.getElementById('modal-bg').classList.add('open');
+}
+function closeModal() { document.getElementById('modal-bg').classList.remove('open'); }
+
+function ftForm(d) {
+  const ex = (d?.extras||[]).map((e,i)=>`
+    <div class="extra-row" id="ex-${i}">
+      <input type="text" placeholder="獎金名稱" value="${e.n}" style="flex:2" id="ex-n-${i}">
+      <input type="number" placeholder="金額" value="${e.v}" style="flex:1" id="ex-v-${i}">
+      <button class="btn btn-sm btn-danger" onclick="rmEx(${i})">✕</button>
+    </div>`).join('');
+  return `
+    <div class="grid2 mb">
+      <div><label class="lbl">本名</label><input id="f-name" value="${d?.name||''}"></div>
+      <div><label class="lbl">暱稱</label><input id="f-nick" value="${d?.nick||''}"></div>
+    </div>
+    <div class="mb"><label class="lbl">底薪（NT$）</label><input id="f-base" type="number" value="${d?.base||0}"></div>
+    <div class="mb flex" style="align-items:flex-start;gap:16px">
+      <label class="flex" style="cursor:pointer;gap:6px;white-space:nowrap;margin-top:4px">
+        <input type="checkbox" id="f-mgr" ${d?.mgr?'checked':''} onchange="document.getElementById('mgr-w').style.display=this.checked?'block':'none'">
+        有主管津貼
+      </label>
+      <div id="mgr-w" style="${d?.mgr?'':'display:none'}flex:1">
+        <label class="lbl">主管津貼金額</label>
+        <input id="f-mgr-v" type="number" value="${d?.mgrAmt||0}">
+      </div>
+    </div>
+    <div><label class="lbl" style="margin-bottom:8px">其他獎金</label>
+      <div id="ex-list">${ex}</div>
+      <button class="btn btn-sm mt" onclick="addEx()">＋ 新增獎金</button>
+    </div>`;
+}
+function ptForm(d) {
+  const r = d?.rates||{y:400,m:500,o:600};
+  const ex = (d?.extras||[]).map((e,i)=>`
+    <div class="extra-row" id="ex-${i}">
+      <input type="text" placeholder="活動費名稱" value="${e.n}" style="flex:2" id="ex-n-${i}">
+      <input type="number" placeholder="金額" value="${e.v}" style="flex:1" id="ex-v-${i}">
+      <button class="btn btn-sm btn-danger" onclick="rmEx(${i})">✕</button>
+    </div>`).join('');
+  return `
+    <div class="grid2 mb">
+      <div><label class="lbl">本名</label><input id="f-name" value="${d?.name||''}"></div>
+      <div><label class="lbl">暱稱</label><input id="f-nick" value="${d?.nick||''}"></div>
+    </div>
+    <p style="font-size:13px;font-weight:600;margin:8px 0 6px">課時費（NT$/堂）</p>
+    <div class="grid3 mb">
+      <div><label class="lbl">2-3歲</label><input id="f-ry" type="number" value="${r.y}"></div>
+      <div><label class="lbl">4-5歲</label><input id="f-rm" type="number" value="${r.m}"></div>
+      <div><label class="lbl">6-12歲</label><input id="f-ro" type="number" value="${r.o}"></div>
+    </div>
+    <div class="mb flex" style="align-items:flex-start;gap:16px">
+      <label class="flex" style="cursor:pointer;gap:6px;white-space:nowrap;margin-top:4px">
+        <input type="checkbox" id="f-full" ${d?.full?'checked':''} onchange="document.getElementById('full-w').style.display=this.checked?'flex':'none'">
+        有滿班獎金
+      </label>
+      <div id="full-w" style="${d?.full?'':'display:none'}flex:1;display:flex;gap:8px">
+        <div style="flex:1"><label class="lbl">金額</label><input id="f-fa" type="number" value="${d?.fullAmt||0}"></div>
+        <div style="flex:1"><label class="lbl">達成人數</label><input id="f-ft" type="number" value="${d?.fullThr||6}"></div>
+      </div>
+    </div>
+    <div><label class="lbl" style="margin-bottom:8px">活動費</label>
+      <div id="ex-list">${ex}</div>
+      <button class="btn btn-sm mt" onclick="addEx()">＋ 新增活動費</button>
+    </div>`;
+}
+
+function addEx() {
+  const list = document.getElementById('ex-list');
+  const i = list.children.length;
+  const d = document.createElement('div');
+  d.className='extra-row'; d.id='ex-'+i;
+  d.innerHTML=`<input type="text" placeholder="名稱" style="flex:2" id="ex-n-${i}"><input type="number" placeholder="金額" style="flex:1" id="ex-v-${i}"><button class="btn btn-sm btn-danger" onclick="rmEx(${i})">✕</button>`;
+  list.appendChild(d);
+}
+function rmEx(i) { const e=document.getElementById('ex-'+i); if(e)e.remove(); }
+function readExtras() {
+  const res=[];
+  Array.from(document.getElementById('ex-list')?.children||[]).forEach(row=>{
+    const ne=row.querySelector('[id^="ex-n-"]'), ve=row.querySelector('[id^="ex-v-"]');
+    if(ne?.value) res.push({n:ne.value, v:parseInt(ve?.value)||0});
+  });
+  return res;
+}
+function saveModal() {
+  const {mode, type, id} = editCtx;
+  const extras = readExtras();
+  let obj;
+  if (type==='fulltime') {
+    obj = {
+      name: document.getElementById('f-name').value,
+      nick: document.getElementById('f-nick').value,
+      base: parseInt(document.getElementById('f-base').value)||0,
+      mgr:  document.getElementById('f-mgr').checked,
+      mgrAmt: parseInt(document.getElementById('f-mgr-v')?.value||0),
+      extras,
+    };
+  } else {
+    obj = {
+      name: document.getElementById('f-name').value,
+      nick: document.getElementById('f-nick').value,
+      rates: {
+        y: parseInt(document.getElementById('f-ry').value)||0,
+        m: parseInt(document.getElementById('f-rm').value)||0,
+        o: parseInt(document.getElementById('f-ro').value)||0,
+      },
+      full:     document.getElementById('f-full').checked,
+      fullAmt:  parseInt(document.getElementById('f-fa')?.value||0),
+      fullThr:  parseInt(document.getElementById('f-ft')?.value||6),
+      extras,
+    };
+  }
+  if (mode==='add') { obj.id=Date.now(); staff[type].push(obj); }
+  else { const idx=staff[type].findIndex(t=>t.id===id); if(idx>=0) staff[type][idx]={...staff[type][idx],...obj}; }
+  closeModal(); renderStaff(); saveStaff();
+}
+
+// ── 每月統計 ─────────────────────────────────────────────
+function detectMonth(rows) {
+  for (const r of rows) {
+    const m = String(r['日期']||'').match(/(\d{4})-(\d{2})/);
+    if (m) return m[1]+'-'+m[2];
+  }
+  return nowYM();
+}
+function processRows(rows, data) {
+  rows.forEach(row=>{
+    const teacher=(row['老師']||'').trim();
+    const course = row['課程']||'';
+    const cat = getCat(course);
+    if(!teacher||!cat) return;
+    if(!data[teacher]) data[teacher]={name:teacher,y:0,m:0,o68:0,o912:0,sy:0,sm:0,so68:0,so912:0};
+    const att=getAtt(row['出席狀態']);
+    if(cat==='y')   {data[teacher].y+=att;   data[teacher].sy++;}
+    else if(cat==='m')   {data[teacher].m+=att;   data[teacher].sm++;}
+    else if(cat==='o68') {data[teacher].o68+=att;  data[teacher].so68++;}
+    else if(cat==='o912'){data[teacher].o912+=att; data[teacher].so912++;}
+  });
+}
+function handleUpload(e) {
+  const file=e.target.files[0]; if(!file) return;
+  document.getElementById('stats-msg').innerHTML='<div class="msg msg-info">讀取中...</div>';
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try {
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const rows=XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]]);
+      const ym=detectMonth(rows);
+      if(!months[ym]) months[ym]={data:{},overtime:{}};
+      processRows(rows, months[ym].data);
+      currentMonth=ym;
+      buildMonthOpts('month-sel'); buildMonthOpts('sal-sel');
+      document.getElementById('month-sel').value=ym;
+      document.getElementById('stats-msg').innerHTML=`<div class="msg msg-ok">✓ 已匯入「${file.name}」→ ${ym2l(ym)}，共 ${rows.length} 筆</div>`;
+      renderStatsTab(); saveMonths();
+    } catch(err) {
+      document.getElementById('stats-msg').innerHTML=`<div style="color:var(--danger-text)">讀取失敗：${err.message}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+  e.target.value='';
+}
+function renderStatsTab() {
+  const data = currentMonth ? (months[currentMonth]?.data||{}) : {};
+  const teachers = Object.values(data);
+  if (!teachers.length) {
+    document.getElementById('stats-table').innerHTML='<div class="upload-area" onclick="document.getElementById(\'file-in\').click()"><div style="font-size:32px;margin-bottom:8px">↑</div><div style="font-size:14px;font-weight:600">點擊上傳 .xlsx 課程統計檔</div></div>';
+    document.getElementById('ot-section').style.display='none';
+    return;
+  }
+  document.getElementById('stats-table').innerHTML=`<div class="card"><table><thead><tr><th>老師</th><th>2-5歲 人次</th><th>6-8歲 人次</th><th>9-12歲 人次</th><th>總人次</th></tr></thead><tbody>
+    ${teachers.map(t=>{
+      const ym2=t.y+t.m, tot=ym2+t.o68+t.o912;
+      return`<tr><td style="font-weight:600">${t.name}</td>
+        <td><span class="badge badge-blue">${ym2}</span> <span style="font-size:11px;color:var(--text2)">${t.sy+t.sm}堂</span></td>
+        <td>${t.o68} <span style="font-size:11px;color:var(--text2)">${t.so68}堂</span></td>
+        <td>${t.o912} <span style="font-size:11px;color:var(--text2)">${t.so912}堂</span></td>
+        <td style="font-weight:600">${tot}</td></tr>`;
+    }).join('')}
+  </tbody></table></div>`;
+  renderOtInputs(currentMonth);
+  document.getElementById('ot-section').style.display='block';
+}
+function renderOtInputs(ym) {
+  document.getElementById('ot-inputs').innerHTML=(staff.fulltime||[]).map(t=>`
+    <div class="ot-row">
+      <div class="avatar">${ini(t.nick)}</div>
+      <div style="flex:1"><span style="font-weight:600">${t.name}</span> <span style="font-size:12px;color:var(--text2)">${t.nick}</span></div>
+      <div class="flex">
+        <span style="font-size:12px;color:var(--text2)">當月教學時數</span>
+        <input type="number" min="0" step="0.5" id="ot-${t.id}" value="${months[ym]?.overtime?.[t.id]||0}" style="width:76px" onchange="saveOt(${t.id},this.value,'${ym}')">
+        <span style="font-size:12px;color:var(--text2)">小時</span>
+        <span id="ot-r-${t.id}" style="font-size:12px;color:#22c55e;min-width:90px">${calcOT(months[ym]?.overtime?.[t.id]||0)}</span>
+      </div>
+    </div>`).join('');
+}
+function saveOt(tid, val, ym) {
+  if(!months[ym]) months[ym]={data:{},overtime:{}};
+  months[ym].overtime[tid]=parseFloat(val)||0;
+  const r=document.getElementById('ot-r-'+tid);
+  if(r) r.textContent=calcOT(val);
+  saveMonths();
+}
+
+// ── 薪資計算 ─────────────────────────────────────────────
+function renderSalary() {
+  const ym = document.getElementById('sal-sel')?.value || currentMonth;
+  if (ym) currentMonth=ym;
+  const el = document.getElementById('sal-content'); if(!el) return;
+  if (!ym || !months[ym]) { el.innerHTML='<div class="msg msg-info">尚未選擇月份或該月份無資料。</div>'; return; }
+  const data=months[ym].data||{}, ot=months[ym].overtime||{};
+  const ftHTML=(staff.fulltime||[]).map(t=>{
+    const td=findTd(t.nick,data);
+    const tot=td?(td.y+td.m+td.o68+td.o912):0;
+    const pB=calcBonus(tot), otH=parseFloat(ot[t.id]||0);
+    const otB=Math.round(Math.max(0,otH-16)*250);
+    const ext=(t.extras||[]).reduce((s,e)=>s+e.v,0);
+    const sum=t.base+pB+otB+(t.mgr?t.mgrAmt:0)+ext;
+    return `<div class="card">
+      <div class="flex-between mb">
+        <div class="flex">
+          <div class="avatar">${ini(t.nick)}</div>
+          <div>
+            <div style="font-size:16px;font-weight:700">${t.name} <span style="font-size:13px;font-weight:400;color:var(--text2)">${t.nick}</span></div>
+            <div style="font-size:11px;color:var(--text2)">正職・${ym2l(ym)}</div>
+          </div>
+        </div>
+        <div style="font-size:20px;font-weight:700">NT$${sum.toLocaleString()}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:8px">
+        <div class="stat-card"><div class="stat-lbl">底薪</div><div class="stat-num">$${t.base.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-lbl">人次獎金（${tot}人次）</div><div class="stat-num" style="color:#22c55e">$${pB.toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-lbl">超時獎金（${otH}h）</div><div class="stat-num" style="color:${otB>0?'#22c55e':'var(--text2)'}">$${otB.toLocaleString()}</div></div>
+        ${t.mgr?`<div class="stat-card"><div class="stat-lbl">主管津貼</div><div class="stat-num" style="color:var(--amber-text)">$${t.mgrAmt.toLocaleString()}</div></div>`:''}
+        ${(t.extras||[]).map(e=>`<div class="stat-card"><div class="stat-lbl">${e.n}</div><div class="stat-num">$${e.v.toLocaleString()}</div></div>`).join('')}
+      </div>
+      ${!td&&Object.keys(data).length?'<p style="font-size:12px;color:var(--amber-text);margin-top:8px">⚠ 統計資料中未找到此老師</p>':''}
+    </div>`;
+  }).join('');
+  const ptHTML=(staff.parttime||[]).map(t=>{
+    const td=findTd(t.nick,data);
+    const sy=td?.sy||0, sm=td?.sm||0, so=(td?.so68||0)+(td?.so912||0);
+    const ext=(t.extras||[]).reduce((s,e)=>s+e.v,0);
+    const sum=sy*t.rates.y+sm*t.rates.m+so*t.rates.o+ext;
+    return `<div class="card">
+      <div class="flex-between mb">
+        <div class="flex">
+          <div class="avatar avatar-green">${ini(t.nick)}</div>
+          <div>
+            <div style="font-size:16px;font-weight:700">${t.name} <span style="font-size:13px;font-weight:400;color:var(--text2)">${t.nick}</span></div>
+            <div style="font-size:11px;color:var(--text2)">兼職・${ym2l(ym)}</div>
+          </div>
+        </div>
+        <div style="font-size:20px;font-weight:700">NT$${sum.toLocaleString()}</div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px">
+        <div class="stat-card"><div class="stat-lbl">2-3歲 ${sy}堂×$${t.rates.y}</div><div class="stat-num">$${(sy*t.rates.y).toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-lbl">4-5歲 ${sm}堂×$${t.rates.m}</div><div class="stat-num">$${(sm*t.rates.m).toLocaleString()}</div></div>
+        <div class="stat-card"><div class="stat-lbl">6-12歲 ${so}堂×$${t.rates.o}</div><div class="stat-num">$${(so*t.rates.o).toLocaleString()}</div></div>
+        ${t.full?`<div class="stat-card"><div class="stat-lbl">滿班獎金</div><div class="stat-num" style="font-size:12px;color:var(--text2)">需人工確認</div></div>`:''}
+        ${(t.extras||[]).map(e=>`<div class="stat-card"><div class="stat-lbl">${e.n}</div><div class="stat-num">$${e.v.toLocaleString()}</div></div>`).join('')}
+      </div>
+      ${!td&&Object.keys(data).length?'<p style="font-size:12px;color:var(--amber-text);margin-top:8px">⚠ 統計資料中未找到此老師</p>':''}
+    </div>`;
+  }).join('');
+  el.innerHTML=`<p class="sec-hd">正職</p>${ftHTML}<p class="sec-hd">兼職</p>${ptHTML}`;
+}
+
+// ── 匯出薪資單 ───────────────────────────────────────────
+function exportSalary() {
+  const ym=document.getElementById('sal-sel')?.value||currentMonth;
+  if(!ym||!months[ym]){alert('請先匯入該月份資料');return;}
+  const data=months[ym].data||{}, ot=months[ym].overtime||{};
+  const wb=XLSX.utils.book_new();
+  const ftR=[['姓名','暱稱','底薪','人次','人次獎金','教學時數','超時獎金','主管津貼','其他獎金','總薪']];
+  (staff.fulltime||[]).forEach(t=>{
+    const td=findTd(t.nick,data), tot=td?(td.y+td.m+td.o68+td.o912):0;
+    const pB=calcBonus(tot), otH=parseFloat(ot[t.id]||0), otB=Math.round(Math.max(0,otH-16)*250);
+    const ext=(t.extras||[]).reduce((s,e)=>s+e.v,0);
+    ftR.push([t.name,t.nick,t.base,tot,pB,otH,otB,t.mgr?t.mgrAmt:0,ext,t.base+pB+otB+(t.mgr?t.mgrAmt:0)+ext]);
+  });
+  const fs=XLSX.utils.aoa_to_sheet(ftR);
+  fs['!cols']=[{wch:10},{wch:12},{wch:10},{wch:8},{wch:12},{wch:10},{wch:12},{wch:10},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,fs,'正職薪資');
+  const ptR=[['姓名','暱稱','2-3歲堂數','課時費','4-5歲堂數','課時費','6-12歲堂數','課時費','活動費','總薪']];
+  (staff.parttime||[]).forEach(t=>{
+    const td=findTd(t.nick,data), sy=td?.sy||0, sm=td?.sm||0, so=(td?.so68||0)+(td?.so912||0);
+    const ext=(t.extras||[]).reduce((s,e)=>s+e.v,0);
+    ptR.push([t.name,t.nick,sy,sy*t.rates.y,sm,sm*t.rates.m,so,so*t.rates.o,ext,sy*t.rates.y+sm*t.rates.m+so*t.rates.o+ext]);
+  });
+  const ps=XLSX.utils.aoa_to_sheet(ptR);
+  ps['!cols']=[{wch:10},{wch:12},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:10},{wch:12}];
+  XLSX.utils.book_append_sheet(wb,ps,'兼職薪資');
+  XLSX.writeFile(wb,`薪資單_${ym}.xlsx`);
+}
+
+// ── 獎金級距 ─────────────────────────────────────────────
+function renderTiers() {
+  document.getElementById('tier-tbody').innerHTML=TIERS.map(t=>`
+    <tr><td>${t.s}</td><td>${t.t}</td><td>${t.a}</td><td style="font-weight:600">${t.b}</td>
+    <td>${t.t2||''}</td><td>${t.r||''}</td><td>${t.c||''}</td></tr>`).join('');
+}
+
+// ── 初始渲染（Firebase 尚未就緒時的 fallback）──────────────
+renderStaff();
+renderTiers();
+</script>
+</body>
+</html>
