@@ -193,8 +193,15 @@ tr:last-child td { border-bottom:none; }
           </div>
           <div class="mb">
             <label class="lbl">密碼</label>
-            <input id="lock-pass" type="password" placeholder="請輸入密碼" autocomplete="current-password"
-              onkeydown="if(event.key==='Enter')unlockStaff()">
+            <div style="position:relative">
+              <input id="lock-pass" type="password" placeholder="請輸入密碼" autocomplete="off"
+                style="padding-right:48px;letter-spacing:0.1em"
+                onkeydown="if(event.key==='Enter')unlockStaff()">
+              <button type="button"
+                onclick="togglePass()"
+                id="pass-eye"
+                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:4px;color:#666">&#128065;</button>
+            </div>
           </div>
           <div id="lock-err" style="font-size:12px;color:var(--danger-text);margin-bottom:8px;display:none">帳號或密碼錯誤</div>
           <button class="btn btn-primary" style="width:100%" onclick="unlockStaff()">登入</button>
@@ -412,6 +419,17 @@ const LOCK_KEY  = "staff_unlocked";
 
 function isUnlocked() {
   return sessionStorage.getItem(LOCK_KEY) === "1";
+}
+function togglePass() {
+  var i = document.getElementById('lock-pass');
+  var btn = document.getElementById('pass-eye');
+  if (i.type === 'text') {
+    i.type = 'password';
+    btn.innerHTML = '&#128065;';
+  } else {
+    i.type = 'text';
+    btn.innerHTML = '&#128584;';
+  }
 }
 function unlockStaff() {
   const u = document.getElementById('lock-user').value;
