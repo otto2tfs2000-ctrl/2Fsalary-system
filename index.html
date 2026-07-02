@@ -155,55 +155,17 @@ tr:last-child td { border-bottom:none; }
 
   <!-- 人員設定 -->
   <div id="pane-staff" class="pane active">
-
-    <!-- 密碼鎖畫面 -->
-    <div id="staff-lock" style="display:flex;align-items:center;justify-content:center;min-height:320px">
-      <div style="width:100%;max-width:340px">
-        <div style="text-align:center;margin-bottom:1.5rem">
-          <div style="font-size:32px;margin-bottom:8px">🔒</div>
-          <div style="font-size:16px;font-weight:600">人員設定</div>
-          <div style="font-size:13px;color:var(--text2);margin-top:4px">請輸入帳號與密碼才能進入</div>
-        </div>
-        <div class="card" style="padding:1.25rem">
-          <div class="mb">
-            <label class="lbl">帳號</label>
-            <input id="lock-user" type="text" placeholder="請輸入帳號" autocomplete="username"
-              onkeydown="if(event.key==='Enter')document.getElementById('lock-pass').focus()">
-          </div>
-          <div class="mb">
-            <label class="lbl">密碼</label>
-            <div style="position:relative">
-              <input id="lock-pass" type="password" placeholder="請輸入密碼" autocomplete="off"
-                style="padding-right:48px;letter-spacing:0.1em"
-                onkeydown="if(event.key==='Enter')unlockStaff()">
-              <button type="button"
-                onclick="togglePass()"
-                id="pass-eye"
-                style="position:absolute;right:10px;top:50%;transform:translateY(-50%);background:none;border:none;cursor:pointer;font-size:16px;padding:4px;color:#666">&#128065;</button>
-            </div>
-          </div>
-          <div id="lock-err" style="font-size:12px;color:var(--danger-text);margin-bottom:8px;display:none">帳號或密碼錯誤</div>
-          <button class="btn btn-primary" style="width:100%" onclick="unlockStaff()">登入</button>
-        </div>
+    <div class="flex-between mb">
+      <span style="font-size:15px;font-weight:600">人員設定</span>
+      <div class="flex">
+        <button class="btn btn-sm" onclick="openModal('add','fulltime',null)">＋ 新增正職</button>
+        <button class="btn btn-sm" onclick="openModal('add','parttime',null)">＋ 新增兼職</button>
       </div>
     </div>
-
-    <!-- 人員設定內容（解鎖後才顯示） -->
-    <div id="staff-content" style="display:none">
-      <div class="flex-between mb">
-        <span style="font-size:15px;font-weight:600">人員設定</span>
-        <div class="flex">
-          <button class="btn btn-sm" onclick="openModal('add','fulltime',null)">＋ 新增正職</button>
-          <button class="btn btn-sm" onclick="openModal('add','parttime',null)">＋ 新增兼職</button>
-          <button class="btn btn-sm btn-danger" onclick="lockStaff()">登出</button>
-        </div>
-      </div>
-      <div class="sec-hd">正職人員</div>
-      <div class="card" id="ft-list"></div>
-      <div class="sec-hd">兼職人員</div>
-      <div class="card" id="pt-list"></div>
-    </div>
-
+    <div class="sec-hd">正職人員</div>
+    <div class="card" id="ft-list"></div>
+    <div class="sec-hd">兼職人員</div>
+    <div class="card" id="pt-list"></div>
   </div>
 
   <!-- 每月統計 -->
@@ -336,7 +298,7 @@ async function saveMonths() {
 
 function applyRemoteStaff(data) {
   staff = data;
-  if (isUnlocked()) renderStaff();
+  renderStaff();
   const lel = document.getElementById('last-edit');
   if (staff.lastEditBy) lel.textContent = '上次：' + staff.lastEditBy + ' ' + staff.lastEditAt;
   syncStatus('ok', '已同步 ' + (staff.lastEditAt||''));
@@ -365,7 +327,7 @@ window.addEventListener('firebase-ready', async () => {
   syncStatus('busy', '載入資料...');
   try {
     const [s, m] = await Promise.all([window._db.getStaff(), window._db.getMonths()]);
-    if (s) { staff  = s; if (isUnlocked()) renderStaff(); }
+    if (s) { staff  = s; renderStaff(); }
     if (m) { months = m; currentMonth = Object.keys(m).sort().reverse()[0] || null; }
     buildMonthOpts('month-sel');
     buildMonthOpts('sal-sel');
@@ -397,50 +359,6 @@ const getAtt  = s => parseInt(String(s||'').split('/')[0])||0;
 const findTd  = (nick, data) => Object.values(data||{}).find(d=>d.name.replace(/\s/g,'')===nick.replace(/\s/g,''));
 
 // ── 密碼鎖 ───────────────────────────────────────────────
-const LOCK_USER = "otto2tfp";
-const LOCK_PASS = "12707656";
-const LOCK_KEY  = "staff_unlocked";
-
-function isUnlocked() {
-  return sessionStorage.getItem(LOCK_KEY) === "1";
-}
-function togglePass() {
-  var i = document.getElementById('lock-pass');
-  var btn = document.getElementById('pass-eye');
-  if (i.type === 'text') {
-    i.type = 'password';
-    btn.innerHTML = '&#128065;';
-  } else {
-    i.type = 'text';
-    btn.innerHTML = '&#128584;';
-  }
-}
-function unlockStaff() {
-  const u = document.getElementById('lock-user').value;
-  const p = document.getElementById('lock-pass').value;
-  const err = document.getElementById('lock-err');
-  if (u === LOCK_USER && p === LOCK_PASS) {
-    sessionStorage.setItem(LOCK_KEY, "1");
-    err.style.display = 'none';
-    showStaffContent();
-  } else {
-    err.style.display = 'block';
-    document.getElementById('lock-pass').value = '';
-    document.getElementById('lock-pass').focus();
-  }
-}
-function lockStaff() {
-  sessionStorage.removeItem(LOCK_KEY);
-  document.getElementById('staff-content').style.display = 'none';
-  document.getElementById('staff-lock').style.display = 'flex';
-  document.getElementById('lock-user').value = '';
-  document.getElementById('lock-pass').value = '';
-}
-function showStaffContent() {
-  document.getElementById('staff-lock').style.display = 'none';
-  document.getElementById('staff-content').style.display = 'block';
-  renderStaff();
-}
 
 // ── 頁籤切換 ─────────────────────────────────────────────
 function switchTab(t) {
@@ -449,7 +367,7 @@ function switchTab(t) {
   });
   document.querySelectorAll('.pane').forEach(p=>p.classList.remove('active'));
   document.getElementById('pane-'+t).classList.add('active');
-  if (t==='staff')  { if (isUnlocked()) showStaffContent(); }
+  if (t==='staff')  renderStaff();
   if (t==='stats')  { buildMonthOpts('month-sel'); renderStatsTab(); }
   if (t==='salary') { buildMonthOpts('sal-sel');   renderSalary(); }
   if (t==='tiers')  renderTiers();
@@ -829,7 +747,7 @@ function renderTiers() {
 }
 
 // ── 初始渲染（Firebase 尚未就緒時的 fallback）──────────────
-if (isUnlocked()) renderStaff();
+renderStaff();
 renderTiers();
 </script>
 </body>
