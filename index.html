@@ -7,57 +7,36 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <!-- Firebase Realtime Database SDK -->
 <script type="module">
-  import { initializeApp }  from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import {
-    getDatabase, ref, set, get, onValue
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js";
-
-  // ── Firebase 設定（otto2-2026）──────────────────────────
-  const FIREBASE_CONFIG = {
-    apiKey:            "AIzaSyCQYP21uHGAeSj_i6ANMexMvp3_bciHvTw",
-    authDomain:        "otto2-2026.firebaseapp.com",
-    databaseURL:       "https://otto2-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
-    projectId:         "otto2-2026",
-    storageBucket:     "otto2-2026.appspot.com",
-    messagingSenderId: "108328085665",
-    appId:             "1:108328085665:web:071a45a7d7c5af6b6468e0",
-  };
-
-  const app = initializeApp(FIREBASE_CONFIG);
-  const db  = getDatabase(app);
-
-  const STAFF_PATH  = "salarySystem/staff";
-  const MONTHS_PATH = "salarySystem/months";
-
-  window._db = {
-    // 寫入
-    async saveStaff(data)  { await set(ref(db, STAFF_PATH),  data); },
-    async saveMonths(data) { await set(ref(db, MONTHS_PATH), data); },
-
-    // 一次性讀取（初始載入）
-    async getStaff()  {
-      const snap = await get(ref(db, STAFF_PATH));
-      return snap.exists() ? snap.val() : null;
-    },
-    async getMonths() {
-      const snap = await get(ref(db, MONTHS_PATH));
-      return snap.exists() ? snap.val() : null;
-    },
-
-    // 即時監聽（onValue = Realtime Database 的 onSnapshot）
-    listenStaff(cb) {
-      return onValue(ref(db, STAFF_PATH), snap => {
-        if (snap.exists()) cb(snap.val());
-      });
-    },
-    listenMonths(cb) {
-      return onValue(ref(db, MONTHS_PATH), snap => {
-        if (snap.exists()) cb(snap.val());
-      });
-    },
-  };
-
-  window.dispatchEvent(new Event("firebase-ready"));
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getDatabase, ref, set, get, onValue } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
+    const FIREBASE_CONFIG = {
+      apiKey:            "AIzaSyCQYP21uHGAeSj_i6ANMexMvp3_bciHvTw",
+      authDomain:        "otto2-2026.firebaseapp.com",
+      databaseURL:       "https://otto2-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
+      projectId:         "otto2-2026",
+      storageBucket:     "otto2-2026.appspot.com",
+      messagingSenderId: "108328085665",
+      appId:             "1:108328085665:web:071a45a7d7c5af6b6468e0",
+    };
+    const app = initializeApp(FIREBASE_CONFIG);
+    const db  = getDatabase(app);
+    const SP  = "salarySystem/staff";
+    const MP  = "salarySystem/months";
+    window._db = {
+      async saveStaff(d)  { await set(ref(db,SP), d); },
+      async saveMonths(d) { await set(ref(db,MP), d); },
+      async getStaff()    { const s=await get(ref(db,SP)); return s.exists()?s.val():null; },
+      async getMonths()   { const s=await get(ref(db,MP)); return s.exists()?s.val():null; },
+      listenStaff(cb)     { return onValue(ref(db,SP), snap=>{ if(snap.exists()) cb(snap.val()); }); },
+      listenMonths(cb)    { return onValue(ref(db,MP), snap=>{ if(snap.exists()) cb(snap.val()); }); },
+    };
+    window.dispatchEvent(new Event("firebase-ready"));
+  } catch(e) {
+    console.error("Firebase failed:", e);
+    window._db = null;
+    window.dispatchEvent(new Event("firebase-ready"));
+  }
 </script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -378,6 +357,11 @@ function applyRemoteMonths(data) {
 
 // ── 初始化 ───────────────────────────────────────────────
 window.addEventListener('firebase-ready', async () => {
+  if (!window._db) {
+    syncStatus('err', '離線模式（Firebase 未連線）');
+    renderTiers();
+    return;
+  }
   syncStatus('busy', '載入資料...');
   try {
     const [s, m] = await Promise.all([window._db.getStaff(), window._db.getMonths()]);
@@ -387,11 +371,11 @@ window.addEventListener('firebase-ready', async () => {
     buildMonthOpts('sal-sel');
     renderTiers();
     syncStatus('ok', '已連線');
-    // 即時監聽
     window._db.listenStaff(applyRemoteStaff);
     window._db.listenMonths(applyRemoteMonths);
   } catch(e) {
     syncStatus('err', '載入失敗：' + e.message);
+    renderTiers();
   }
 });
 
@@ -839,7 +823,7 @@ function exportSalary() {
 function renderTiers() {
   document.getElementById("tier-tbody").innerHTML=TIERS.map(t=>{
     const fullBonus = t.max ? t.max*t.rate : null;
-    return `<tr><td>${t.label}</td><td style="font-weight:600">${t.rate}</td><td style="color:var(--green-text)">${fullBonus ? "$"+fullBonus.toLocaleString() : "持續累加"}</td><td style="font-size:12px;color:var(--text2)">人次 � $${t.rate}</td></tr>`;
+    return `<tr><td>${t.label}</td><td style="font-weight:600">${t.rate}</td><td style="color:var(--green-text)">${fullBonus ? "$"+fullBonus.toLocaleString() : "持續累加"}</td><td style="font-size:12px;color:var(--text2)">人次 � $${t.rate}</td></tr>`;
   }).join("");
 }
 }
