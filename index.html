@@ -5,12 +5,13 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>教學老師薪資管理系統</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<!-- Firebase Realtime Database SDK -->
-<script type="module">
+<!-- Firebase SDK (compat version, no module needed) -->
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+<script>
+(function() {
   try {
-    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
-    const { getDatabase, ref, set, get, onValue } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-database.js");
-    const FIREBASE_CONFIG = {
+    var FIREBASE_CONFIG = {
       apiKey:            "AIzaSyCQYP21uHGAeSj_i6ANMexMvp3_bciHvTw",
       authDomain:        "otto2-2026.firebaseapp.com",
       databaseURL:       "https://otto2-2026-default-rtdb.asia-southeast1.firebasedatabase.app",
@@ -19,24 +20,23 @@
       messagingSenderId: "108328085665",
       appId:             "1:108328085665:web:071a45a7d7c5af6b6468e0",
     };
-    const app = initializeApp(FIREBASE_CONFIG);
-    const db  = getDatabase(app);
-    const SP  = "salarySystem/staff";
-    const MP  = "salarySystem/months";
+    firebase.initializeApp(FIREBASE_CONFIG);
+    var db = firebase.database();
+    var SP = "salarySystem/staff";
+    var MP = "salarySystem/months";
     window._db = {
-      async saveStaff(d)  { await set(ref(db,SP), d); },
-      async saveMonths(d) { await set(ref(db,MP), d); },
-      async getStaff()    { const s=await get(ref(db,SP)); return s.exists()?s.val():null; },
-      async getMonths()   { const s=await get(ref(db,MP)); return s.exists()?s.val():null; },
-      listenStaff(cb)     { return onValue(ref(db,SP), snap=>{ if(snap.exists()) cb(snap.val()); }); },
-      listenMonths(cb)    { return onValue(ref(db,MP), snap=>{ if(snap.exists()) cb(snap.val()); }); },
+      saveStaff:   function(d) { return db.ref(SP).set(d); },
+      saveMonths:  function(d) { return db.ref(MP).set(d); },
+      getStaff:    function()  { return db.ref(SP).once("value").then(function(s){ return s.exists()?s.val():null; }); },
+      getMonths:   function()  { return db.ref(MP).once("value").then(function(s){ return s.exists()?s.val():null; }); },
+      listenStaff: function(cb)  { db.ref(SP).on("value", function(s){ if(s.exists()) cb(s.val()); }); },
+      listenMonths:function(cb)  { db.ref(MP).on("value", function(s){ if(s.exists()) cb(s.val()); }); },
     };
-    window.dispatchEvent(new Event("firebase-ready"));
   } catch(e) {
-    console.error("Firebase failed:", e);
+    console.error("Firebase init failed:", e);
     window._db = null;
-    window.dispatchEvent(new Event("firebase-ready"));
   }
+})();
 </script>
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -318,17 +318,19 @@ function applyRemoteMonths(data) {
 }
 
 // ── 初始化 ───────────────────────────────────────────────
-window.addEventListener('firebase-ready', async () => {
+async function initApp() {
   if (!window._db) {
-    syncStatus('err', '離線模式（Firebase 未連線）');
+    syncStatus('err', '離線模式');
+    renderStaff();
     renderTiers();
     return;
   }
   syncStatus('busy', '載入資料...');
   try {
     const [s, m] = await Promise.all([window._db.getStaff(), window._db.getMonths()]);
-    if (s) { staff  = s; renderStaff(); }
+    if (s) { staff  = s; }
     if (m) { months = m; currentMonth = Object.keys(m).sort().reverse()[0] || null; }
+    renderStaff();
     buildMonthOpts('month-sel');
     buildMonthOpts('sal-sel');
     renderTiers();
@@ -337,9 +339,10 @@ window.addEventListener('firebase-ready', async () => {
     window._db.listenMonths(applyRemoteMonths);
   } catch(e) {
     syncStatus('err', '載入失敗：' + e.message);
+    renderStaff();
     renderTiers();
   }
-});
+}
 
 // ── 工具函式 ─────────────────────────────────────────────
 const ini  = n => n.replace(/老師/,'').replace(/[\u{1F300}-\u{1F9FF}]/gu,'').trim().slice(0,2) || n.slice(0,2);
@@ -747,8 +750,8 @@ function renderTiers() {
 }
 
 // ── 初始渲染（Firebase 尚未就緒時的 fallback）──────────────
-renderStaff();
-renderTiers();
+// 頁面載入後啟動（Firebase compat SDK 同步載入，_db 已就緒）
+initApp();
 </script>
 </body>
 </html>
